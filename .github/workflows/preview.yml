@@ -1,0 +1,42 @@
+# Preview for review (plan § 3, ADR 0003). Run by hand only.
+# The marker comes from the LANE_MARKER Actions secret (masked in logs).
+# Clean-up: delete the secret and run again; the same link then shows "no marker set".
+name: preview
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: pnpm install --no-frozen-lockfile
+      - name: Save /digest/2026-10-28 as one HTML file
+        env:
+          LANE_MARKER: ${{ secrets.LANE_MARKER }}
+        run: pnpm preview /digest/2026-10-28 var/preview/index.html
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: var/preview
+          retention-days: 1
+      - id: deployment
+        uses: actions/deploy-pages@v4
