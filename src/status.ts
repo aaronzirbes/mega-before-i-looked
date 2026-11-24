@@ -1,4 +1,4 @@
-import { readdirSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import type { RigConfig } from './config.js';
 import { lastBeat, type Beat } from './heartbeat.js';
 
@@ -6,8 +6,10 @@ export type Status = {
   adapter: string;
   installed: string;
   lastBeat: Beat | null;
-  nights: string[];
+  nights: NightCount[];
 };
+
+export type NightCount = { night: string; ok: number; retry: number; fail: number };
 
 // Nights on disk = runs/<YYYY-MM-DD>.jsonl, newest first.
 export function nightsOnDisk(runsDir: string): string[] {
@@ -22,11 +24,31 @@ export function nightsOnDisk(runsDir: string): string[] {
   }
 }
 
+// Counts ok/retry/fail lines. Lines that do not parse, or have another status, are skipped.
+export function countNight(runsDir: string, night: string): NightCount {
+  const count: NightCount = { night, ok: 0, retry: 0, fail: 0 };
+  let text = '';
+  try {
+    text = readFileSync(`${runsDir}/${night}.jsonl`, 'utf8');
+  } catch {
+    return count;
+  }
+  for (const line of text.split('\n')) {
+    try {
+      const status: unknown = (JSON.parse(line) as { status?: unknown } | null)?.status;
+      if (status === 'ok' || status === 'retry' || status === 'fail') count[status]++;
+    } catch {
+      // skip bad line
+    }
+  }
+  return count;
+}
+
 export function readStatus(config: RigConfig): Status {
   return {
     adapter: config.adapter,
     installed: config.installed,
     lastBeat: lastBeat(),
-    nights: nightsOnDisk(config.runsDir),
+    nights: nightsOnDisk(config.runsDir).map((n) => countNight(config.runsDir, n)),
   };
 }
