@@ -33,5 +33,14 @@ export function createApp(config: RigConfig = loadConfig()) {
     );
   });
 
+  // Same rows, same order as the page (ADR 0001).
+  app.get('/api/digest/:night', (c) => {
+    const night = c.req.param('night');
+    if (!NIGHT.test(night)) return c.json({ error: 'not found' }, 404);
+    const result = readNight(config.runsDir, night);
+    if (result.kind === 'missing') return c.json({ error: 'not found' }, 404);
+    return c.json({ night: result.night, rows: result.rows, badLines: result.badLines });
+  });
+
   return app;
 }
